@@ -16,6 +16,17 @@ def main():
     print("🔍 Debugging Environment Variables and Settings")
     print("=" * 60)
     
+    # SECURITY: Check if we should run in production
+    try:
+        from drill_blast_system.core.config import get_settings
+        settings = get_settings()
+        if settings.environment == "production":
+            print("❌ Debug output disabled in production environment for security")
+            return
+    except Exception:
+        # If we can't load settings, continue with basic checks
+        pass
+    
     # Check environment variables
     print("\n📋 Environment Variables:")
     env_vars = [

@@ -12,6 +12,12 @@ def debug_jwt():
         
         # Check settings
         settings = get_settings()
+        
+        # SECURITY: Prevent debug output in production
+        if settings.environment == "production":
+            print("❌ Debug output disabled in production environment for security")
+            return
+        
         print(f"Secret key: {settings.security.secret_key[:10]}...")
         print(f"Algorithm: {settings.security.algorithm}")
         

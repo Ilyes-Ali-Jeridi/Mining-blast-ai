@@ -10,6 +10,7 @@ import os
 import time
 import signal
 import shutil
+import secrets
 from pathlib import Path
 
 def check_node_npm():
@@ -62,8 +63,10 @@ def setup_environment():
             print("✅ Created .env file with Supabase configuration")
         else:
             print("⚠️  No .env.example found, creating minimal .env file...")
+            # Generate a secure secret key for development
+            dev_secret_key = secrets.token_urlsafe(64)
             with open(env_file, 'w') as f:
-                f.write("""# Development environment configuration
+                f.write(f"""# Development environment configuration
 APP_NAME="Automated Drill-and-Blast System"
 ENVIRONMENT=development
 DEBUG=true
@@ -74,8 +77,8 @@ API_HOST=127.0.0.1
 API_PORT=8000
 API_RELOAD=true
 
-# Security settings
-SECURITY_SECRET_KEY=dev-secret-key-change-in-production
+# Security settings - Generated secure key for development
+SECURITY_SECRET_KEY={dev_secret_key}
 """)
             print("✅ Created minimal .env file")
 

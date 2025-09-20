@@ -1,0 +1,138 @@
+# Docker Compose configuration for Automated Drill-and-Blast System
+# Implements requirement 10.3: Docker configuration for containerized deployment
+
+version: '3.8'
+
+services:
+  # Main application service
+  drill-blast-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: drill-blast-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DB_SUPABASE_URL=${SUPABASE_URL}
+      - DB_SUPABASE_KEY=${SUPABASE_ANON_KEY}
+      - DB_SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SECURITY_REQUIRE_ENGINEER_SIGNOFF=true
+      - SECURITY_AUDIT_TRAIL_ENABLED=true
+      - STORAGE_USE_SUPABASE_STORAGE=true
+    volumes:
+      # Persistent data storage
+      - drill_blast_data:/app/data
+      - drill_blast_logs:/app/logs
+      - drill_blast_uploads:/app/uploads
+      - drill_blast_reports:/app/reports
+      # Configuration override (optional)
+      - ./config/production.yaml:/app/config.yaml:ro
+    networks:
+      - drill-blast-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.drill-blast-api.rule=Host(`drill-blast.local`)"
+      - "traefik.http.services.drill-blast-api.loadbalancer.server.port=8000"
+
+  # Redis for caching and session storage (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: drill-blast-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - drill_blast_redis:/data
+    networks:
+      - drill-blast-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: drill-blast-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - drill_blast_static:/var/www/static:ro
+    networks:
+      - drill-blast-network
+    depends_on:
+      - drill-blast-api
+
+  # Development service (for development environment)
+  drill-blast-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: drill-blast-dev
+    restart: "no"
+    ports:
+      - "8001:8000"
+    environment:
+      - ENVIRONMENT=development
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_RELOAD=true
+      - DEBUG=true
+      - DB_SUPABASE_URL=${SUPABASE_URL}
+      - DB_SUPABASE_KEY=${SUPABASE_ANON_KEY}
+      - DB_SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - STORAGE_USE_SUPABASE_STORAGE=false
+    volumes:
+      # Mount source code for development
+      - ./src:/app/src
+      - ./config:/app/config
+      - drill_blast_dev_data:/app/data
+      - drill_blast_dev_logs:/app/logs
+    networks:
+      - drill-blast-network
+    profiles:
+      - development
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Named volumes for persistent storage
+volumes:
+  drill_blast_data:
+    driver: local
+  drill_blast_logs:
+    driver: local
+  drill_blast_uploads:
+    driver: local
+  drill_blast_reports:
+    driver: local
+  drill_blast_redis:
+    driver: local
+  drill_blast_static:
+    driver: local
+  # Development volumes
+  drill_blast_dev_data:
+    driver: local
+  drill_blast_dev_logs:
+    driver: local
+
+# Network configuration
+networks:
+  drill-blast-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

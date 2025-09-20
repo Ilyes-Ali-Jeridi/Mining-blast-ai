@@ -4,12 +4,23 @@ Implements requirement 10.4: Configuration management system.
 """
 
 import os
+import secrets
 from pathlib import Path
 from typing import Optional, List
 from functools import lru_cache
 
 from pydantic import Field, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def generate_secure_secret_key() -> str:
+    """
+    Generate a cryptographically secure secret key.
+    
+    Returns:
+        A secure random secret key suitable for JWT signing
+    """
+    return secrets.token_urlsafe(64)
 
 
 class DatabaseSettings(BaseSettings):
@@ -56,7 +67,10 @@ class SecuritySettings(BaseSettings):
     """Security and authentication settings."""
     
     # JWT settings
-    secret_key: str = Field(default="dev-secret-key-change-in-production", description="Secret key for JWT")
+    secret_key: str = Field(
+        default_factory=generate_secure_secret_key,
+        description="Secret key for JWT (auto-generated if not provided)"
+    )
     algorithm: str = Field(default="HS256", description="JWT algorithm")
     access_token_expire_hours: int = Field(default=8, description="Access token expiration in hours")
     
@@ -79,6 +93,27 @@ class SecuritySettings(BaseSettings):
     audit_trail_enabled: bool = Field(default=True, description="Enable audit trail logging")
     
     model_config = SettingsConfigDict(env_prefix="SECURITY_")
+    
+    @validator("secret_key")
+    def validate_secret_key(cls, v):
+        """Validate secret key strength."""
+        if v == "dev-secret-key-change-in-production":
+            import warnings
+            warnings.warn(
+                "SECURITY WARNING: Using default weak secret key. "
+                "Set SECURITY_SECRET_KEY environment variable with a strong key.",
+                category=UserWarning,
+                stacklevel=2
+            )
+        elif len(v) < 32:
+            import warnings
+            warnings.warn(
+                "SECURITY WARNING: Secret key is too short. "
+                "Use at least 32 characters for production.",
+                category=UserWarning,
+                stacklevel=2
+            )
+        return v
 
 
 class PhysicsSettings(BaseSettings):
@@ -267,8 +302,8 @@ def create_default_config_file(config_path: Path = Path("config.yaml")) -> None:
         "database": {
             "url": "postgresql://user:pass@localhost:5432/drill_blast_system",
             "echo": False,
-            "supabase_url": "https://your-project.supabase.co",
-            "supabase_key": "your-anon-key"
+            "supabase_url": "https://your-project-id.supabase.co",
+            "supabase_key": "your-supabase-anon-key-here"
         },
         "api": {
             "host": "127.0.0.1",
@@ -276,6 +311,7 @@ def create_default_config_file(config_path: Path = Path("config.yaml")) -> None:
             "cors_origins": ["http://localhost:3000"]
         },
         "security": {
+            "secret_key": generate_secure_secret_key(),
             "require_engineer_signoff": True,
             "audit_trail_enabled": True
         },

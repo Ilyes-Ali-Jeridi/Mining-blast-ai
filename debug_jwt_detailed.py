@@ -12,10 +12,17 @@ def debug_jwt_detailed():
         from drill_blast_system.core.config import get_settings
         
         settings = get_settings()
+        
+        # SECURITY: Prevent debug output in production
+        if settings.environment == "production":
+            print("❌ Debug output disabled in production environment for security")
+            return
+        
         secret_key = settings.security.secret_key
         algorithm = settings.security.algorithm
         
-        print(f"Secret key: {secret_key}")
+        # SECURITY: Never log full secret keys or tokens in production
+        print(f"Secret key: {'***' + secret_key[-4:] if len(secret_key) > 8 else '***'}")
         print(f"Algorithm: {algorithm}")
         
         # Create token manually
@@ -30,7 +37,7 @@ def debug_jwt_detailed():
         
         # Encode token
         token = jwt.encode(payload, secret_key, algorithm=algorithm)
-        print(f"Token: {token}")
+        print(f"Token: {token[:20]}...{token[-10:] if len(token) > 30 else '***'}")
         
         # Decode token
         try:

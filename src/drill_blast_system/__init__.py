@@ -10,6 +10,10 @@ __author__ = "Mining Engineering Team"
 __email__ = "engineering@mining.com"
 
 from .core.config import get_settings
-from .core.logging import setup_logging
 
-__all__ = ["get_settings", "setup_logging"]
+# Optional logging setup (requires structlog)
+try:
+    from .core.logging_config import setup_logging
+    __all__ = ["get_settings", "setup_logging"]
+except ImportError:
+    __all__ = ["get_settings"]

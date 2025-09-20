@@ -4,6 +4,7 @@ Implements requirements 4.4, 4.5, 4.7 for secure sign-off and session management
 """
 
 import hashlib
+import hmac
 import secrets
 from typing import Optional, Dict, Any, Union
 from datetime import datetime, timedelta
@@ -126,19 +127,23 @@ class SecurityManager:
         Returns:
             Digital signature hash
         """
-        # Create signature data
+        # Create signature data (without including secret key directly)
         signature_data = {
             "data": data,
             "user_id": user_id,
             "timestamp": timestamp.isoformat(),
-            "secret": self.secret_key
         }
         
-        # Create hash
+        # Create hash using HMAC for better security
+        import hmac
         signature_string = str(signature_data)
-        signature_hash = hashlib.sha256(signature_string.encode()).hexdigest()
+        signature_hash = hmac.new(
+            self.secret_key.encode(),
+            signature_string.encode(),
+            hashlib.sha256
+        ).hexdigest()
         
-        return f"sha256:{signature_hash}"
+        return f"hmac-sha256:{signature_hash}"
     
     def verify_digital_signature(
         self,
